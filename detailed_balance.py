@@ -27,7 +27,7 @@ def fw(R,L):
     return ws/np.pi #tecnically (ws*cos(theta))/pi where theta is incident angle
 
 
-def uE(T): #[J] upper energy limit to not break quad integrating to +inf
+def uE(T): #[J] upper energy limit to not break quad integrating to inf
     
 #    #This can be solved analytically, but like most things relating to Planck's
 #    #equation, there exists a simple linear relationship with temperature
@@ -43,24 +43,22 @@ def uE(T): #[J] upper energy limit to not break quad integrating to +inf
     
     return 6.89699e-21*T+6.16297e-33 #[J]
 
-def planckPeak(T): #[J]
+def planckPeak(T): #[J] energy location of peak in Planck function
     return np.real((5+special.lambertw(-5/np.e**5))*sp.k*T) # [J]
 
-def lE(T): #Upper limit to not break quad integrating to +inf
+def lE(T): #Lower limit to not break quad integrating to inf
     return planckPeak(T)/1e4 #[J] 1e4 higher than the peak gives a low error
 
 def pMax(T):
     return (2*(np.pi**5)*(sp.k*T)**4)/(15*sp.h**3*sp.c**2)
       
 def maxEffGlobal(Ts,Tc,Ps,fs,X,n):
-    #Eg0=np.linspace(0.5*n,0.5,n)
-    #myEg=optimize.differential_evolution(lambda x:-maxEff(x,Ts,Tc,Ps,fs,X,uLim)[0], Eg0, method='Nelder-Mead',options={'disp': True, 'maxiter':100000})
     myRange=[(0,12)]*n    
-    #myEg=optimize.differential_evolution(lambda x:-maxEff(x,Ts,Tc,Ps,pfs,X,uLim)[0], myRange, maxiter=5000, popsize=15, tol=0.0001)
     myEg=optimize.differential_evolution(maxEff, myRange, args=(Ts,Tc,Ps,fs,X), maxiter=100000, popsize=15, tol=0.0001)
     if myEg['success']:
-        return (myEg)#,maxEff(myEg.x,,myEg.y,Ts,Tc,Ps,fs,X,uLim),maxEff(myEg.y,Ts,Tc,Ps,fs,X,uLim))   
+        return (myEg)
     else:
+        #this should return NaN probably
         return (myEg) 
         
 def maxEff(Eg,Ts,Tc,Ps,fs,X):
@@ -80,20 +78,22 @@ def maxEff(Eg,Ts,Tc,Ps,fs,X):
             else:
                 Emax=Eg[i-1]
             preFactor[i]=X*fs*N(Eg[i],Emax,Ts,0)+(1-X*fs)*N(Eg[i],Emax,Tc,0)
-            #myV.append(optimize.minimize_scalar(lambda V:-((sp.e*(preFactor[i]-N(Eg[i],uE(Tc)/sp.e,Tc,V)))*V/Ps),bounds=(0,Eg[i]),method='bounded',options={'disp': True}))
+            #solve for best chemical potential of each bandgap
             myV.append(optimize.minimize_scalar(V, bounds=(0,Eg[i]), args=(preFactor[i],Eg[i],Tc,Ps), method='bounded',options={'disp': True}))
  
         if all(myV[i].success for i in range(Eg.size)): 
+            #calculate efficiency
             for i in range(Eg.size):
                 myJ[i]=(sp.e*(preFactor[i]-N(Eg[i],uE(Tc)/sp.e,Tc,myV[i].x)))
-            minJ=myJ.min()
-            totalV=sum(myV[i].x for i in range (Eg.size))
+            minJ=myJ.min()            #current limited by lowest-producing cell
+            totalV=sum(myV[i].x for i in range (Eg.size))   #voltages add
             myEff=minJ*totalV/Ps
-            return (-myEff)   
+            return (-myEff)   #negative because we are using minimize_scalar
         else:
             return (float('NaN'))
             
 def V(myV,myPreFactor,myEg,myTc,myPs):
+    #negative because we are using minimize_scalar
     return -((sp.e*(myPreFactor-N(myEg,uE(myTc)/sp.e,myTc,myV)))*myV/myPs)
 
 
